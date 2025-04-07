@@ -13,13 +13,18 @@ class FloorPlanNet(nn.Module):
         vgg = models.vgg16(pretrained=True)
         self.encoder = nn.Sequential(*list(vgg.features.children())[:30])
 
+        # Freeze encoder layers
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+
         # Decoder for boundary detection
-        self.boundary_decoder = self._build_decoder(512, 256, 3)
+        self.boundary_decoder = self._build_decoder(
+            512, 256, 3)  # 3 classes for boundary
 
         # Decoder for room type detection
-        self.room_decoder = self._build_decoder(512, 256, 9)
+        self.room_decoder = self._build_decoder(512, 256, 9)  # 9 room types
 
-        # Context modules
+        # Context modules with skip connections
         self.context_modules = nn.ModuleList([
             self._build_context_module(256),
             self._build_context_module(128),
@@ -33,21 +38,24 @@ class FloorPlanNet(nn.Module):
                                mid_channels,
                                kernel_size=4,
                                stride=2,
-                               padding=1), nn.ReLU(inplace=True),
-            nn.Conv2d(mid_channels, mid_channels, kernel_size=3, padding=1),
+                               padding=1), nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
+            nn.Conv2d(mid_channels, mid_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(mid_channels), nn.ReLU(inplace=True),
             nn.ConvTranspose2d(mid_channels,
                                mid_channels // 2,
                                kernel_size=4,
                                stride=2,
-                               padding=1), nn.ReLU(inplace=True),
+                               padding=1), nn.BatchNorm2d(mid_channels // 2),
+            nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels // 2, out_channels, kernel_size=1))
 
     def _build_context_module(self, channels):
         return nn.Sequential(
             nn.Conv2d(channels * 2, channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True), nn.Conv2d(channels, channels,
-                                             kernel_size=1))
+            nn.BatchNorm2d(channels), nn.ReLU(inplace=True),
+            nn.Conv2d(channels, channels, kernel_size=1),
+            nn.BatchNorm2d(channels))
 
     def forward(self, x):
         # Encoder

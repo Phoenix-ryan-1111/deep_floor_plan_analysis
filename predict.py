@@ -4,12 +4,13 @@ from PIL import Image
 from torchvision import transforms
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
 
-# Color maps (from rgb_ind_convertor.py)
+# Color maps
 floorplan_map = {
     0: [255, 255, 255],  # background
     1: [192, 192, 224],  # closet
-    2: [192, 255, 255],  # batchroom/washroom
+    2: [192, 255, 255],  # bathroom/washroom
     3: [224, 255, 192],  # livingroom/kitchen/dining room
     4: [255, 224, 128],  # bedroom
     5: [255, 160, 96],  # hall
@@ -28,10 +29,10 @@ def ind2rgb(ind_im, color_map=floorplan_map):
     return rgb_im
 
 
-def predict(image_path, model_path='floorplan_model.pth'):
+def predict(image_path, model_path='best_floorplan_model.pth'):
     # Load model
     model = FloorPlanNet()
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, map_location='cpu'))
     model.eval()
 
     # Load and preprocess image
@@ -56,8 +57,8 @@ def predict(image_path, model_path='floorplan_model.pth'):
 
     # Merge results
     floorplan = room_pred.copy()
-    floorplan[boundary_pred == 1] = 9
-    floorplan[boundary_pred == 2] = 10
+    floorplan[boundary_pred == 1] = 9  # door/window
+    floorplan[boundary_pred == 2] = 10  # wall
 
     # Convert to RGB
     floorplan_rgb = ind2rgb(floorplan)
@@ -67,14 +68,18 @@ def predict(image_path, model_path='floorplan_model.pth'):
     plt.subplot(121)
     plt.imshow(image)
     plt.title('Input Image')
+    plt.axis('off')
+
     plt.subplot(122)
     plt.imshow(floorplan_rgb)
     plt.title('Prediction')
+    plt.axis('off')
+
+    plt.tight_layout()
     plt.show()
 
 
 if __name__ == '__main__':
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--im_path',
                         type=str,
